@@ -1,0 +1,10 @@
+.connect{
+    height: 100%;
+    width: 100%;
+}
+
+.connect > path {
+    stroke: #2196f3; 
+    stroke-width: 3px;
+    fill: none;
+}
