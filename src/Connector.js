@@ -17,6 +17,12 @@ class Connector extends React.Component{
     this.setState({hover:false})
   }
 
+  onMouseDown(event){
+    event.stopPropagation();
+    event.preventDefault();
+    this.props.OnMouseDown();
+  }
+
   getRadius(){
     return this.state.hover ? this.props.Radius*1.2 : this.props.Radius
   }
@@ -31,6 +37,7 @@ class Connector extends React.Component{
         }}
         onMouseEnter={this.onMouseEnter.bind(this)}
         onMouseLeave={this.onMouseLeave.bind(this)}
+        onMouseDown={this.onMouseDown.bind(this)}
       >
             <circle cx={this.getRadius()} 
               cy={this.getRadius()}

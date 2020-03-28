@@ -19,10 +19,16 @@ class Block extends React.Component{
 
   onMouseEnter(){
     this.setState({hover:true});
+    this.props.OnMouseEnter(this.props.Block.Id);
   }
 
   onMouseLeave(){
     this.setState({hover:false})
+    this.props.OnMouseLeave()
+  }
+
+  onStartConnecting(){
+    this.props.OnStartConnecting(this.props.Block.Id)
   }
 
   render() {
@@ -46,13 +52,21 @@ class Block extends React.Component{
             onMouseLeave={this.onMouseLeave.bind(this)}
           >
             {(this.props.Input || this.state.hover) &&
-              <Connector key={`input_${this.props.Id}`} Radius={connectorRadius} Side="left"/>
+              <Connector key={`input_${this.props.Id}`} 
+                Radius={connectorRadius} 
+                Side="left"
+                OnMouseDown={this.onStartConnecting.bind(this)}
+              />
             }
             <div className="block-content">
               <span>{this.props.Block.Title}</span>
             </div>
             {(this.props.Output || this.state.hover) &&
-              <Connector key={`output_${this.props.Id}`} Radius={connectorRadius} Side="right"/>
+              <Connector key={`output_${this.props.Id}`}
+                Radius={connectorRadius}
+                Side="right"
+                OnMouseDown={this.onStartConnecting.bind(this)}
+              />
             }
           </div>
         </div>

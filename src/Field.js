@@ -12,10 +12,6 @@ var model = {
               x: 120,
               y: 50
           },
-          Size:{
-            height: 30,
-            width: 50,
-          },
           Connects:[
               2
           ]
@@ -27,11 +23,16 @@ var model = {
               x: 700,
               y: 100
           },
-          Size:{
-            height: 30,
-            width: 70,
-          },
           Connects:[]
+      },
+      {
+        Id: 3,
+        Title: "abcd",
+        Position:{
+            x: 670,
+            y: 350
+        },
+        Connects:[]
       }
   ]
 }
@@ -42,6 +43,16 @@ const emptyCoordinates = {
   y: 0
 }
 
+const findBlockById = (blocks, id) => {
+  return blocks.find((block => {return block.Id == id}))
+}
+
+const hasConntection = (block, conntection) => {
+  return block.Connects.some((item)=>{
+    return item == conntection; 
+  })
+}
+
 class Field extends React.Component {
   
   constructor(props) {
@@ -49,31 +60,32 @@ class Field extends React.Component {
     this.state = {
       draggedObj: null,
       correction: null,
-      renderedBlocksCount:0
+      renderedBlocksCount:0,
     };
   }
 
   componentWillUnmount(){
-    this.removeListeners();
+    this.removeBlockDndListeners();
+    this.removeConnectionListeners();
   }
 
-  onMouseDown(block, correction) {
+  onStartBlockDrag(block, correction) {
     this.setState({
       draggedObj: block,
       correction: correction
     });
-    document.addEventListener('mousemove', this.onMouseMove.bind(this));
-    document.addEventListener('mouseup', this.onMouseUp.bind(this));
+    document.addEventListener('mousemove', this.onBlockDrag.bind(this));
+    document.addEventListener('mouseup', this.onBlockDrop.bind(this));
   } 
 
-  onMouseUp(){
-    this.removeListeners();
+  onBlockDrop(){
+    this.removeBlockDndListeners();
     this.setState({
       draggedObj: null
     });
   }
 
-  onMouseMove(event){
+  onBlockDrag(event){
     if(!this.state.draggedObj){
       return;
     }
@@ -83,10 +95,85 @@ class Field extends React.Component {
     this.forceUpdate();
   }
 
+  onEnterToBlock(blockId){
+    if(!this.state.connectableParentBlockId){
+      return;
+    }
+    this.setState({
+      targetConnectableBlockId: blockId 
+    });
+  }
+
+  onLeaveBlock(){
+    if(!this.state.connectableParentBlockId){
+      return;
+    }
+    this.setState({
+      targetConnectableBlockId: null
+    })
+  }
+
   updateBlockPosition(event) {
-    var targetBlock = model.blocks.find((block)=>{return block.Id == this.state.draggedObj.Id});
+    var targetBlock = findBlockById(model.blocks, this.state.draggedObj.Id);
     targetBlock.Position.x = event.clientX - this.state.correction.x;
     targetBlock.Position.y = event.clientY - this.state.correction.y;
+  }
+
+  removeBlockDndListeners(){
+    document.removeEventListener('mousemove', this.onBlockDrag);
+    document.removeEventListener('mouseup', this.onBlockDrop);
+  }
+
+  onBlockWillMount(){
+    this.setState({renderedBlocksCount: ++this.state.renderedBlocksCount})
+  }
+
+  onStartConnectionDrag(blockId){
+    if(!blockId){
+      return;
+    }
+    this.setState({
+      connectableParentBlockId: blockId 
+    });
+    document.addEventListener('mouseup', this.onConnectionDrop.bind(this));
+    document.addEventListener('mousemove', this.onConnectionDrag.bind(this));
+  }
+
+  onConnectionDrop(){
+    var startBlock = findBlockById(model.blocks, this.state.connectableParentBlockId);
+    
+    if (
+      startBlock 
+      && this.state.targetConnectableBlockId
+      && this.state.connectableParentBlockId != this.state.targetConnectableBlockId
+      && !hasConntection(startBlock, this.state.targetConnectableBlockId)
+    ) {
+      startBlock.Connects.push(this.state.targetConnectableBlockId);
+    }
+    this.setState({
+      connectableParentBlockId: null,
+      connectionEndPosition: null
+    });
+    this.removeConnectionListeners();
+    this.forceUpdate();
+  }
+
+  onConnectionDrag(event){
+    if(!this.state.connectableParentBlockId){
+      return;
+    }
+
+    this.setState({
+      connectionEndPosition: {
+        x: event.clientX,
+        y: event.clientY
+      }
+    })
+  }
+
+  removeConnectionListeners(){
+    document.removeEventListener('mouseup', this.onConnectionDrop);
+    document.removeEventListener('mousemove', this.onConnectionDrag);
   }
 
   getBlockRenderObjects(){
@@ -94,10 +181,13 @@ class Field extends React.Component {
     model.blocks.forEach(block => {
       result.push(<Block Block={block}
                     key={block.Id}
-                    OnMouseDown={this.onMouseDown.bind(this)}
+                    OnMouseDown={this.onStartBlockDrag.bind(this)}
                     ComponentWillMount={this.onBlockWillMount.bind(this)}
                     Input={this.hasInput(block.Id, model.blocks)}
                     Output={block.Connects && block.Connects.length>0}
+                    OnMouseEnter={this.onEnterToBlock.bind(this)}
+                    OnMouseLeave={this.onLeaveBlock.bind(this)}
+                    OnStartConnecting={this.onStartConnectionDrag.bind(this)}
                   />);
 
       Array.prototype.push.apply(result, this.getConnectRenderObjects(block));
@@ -113,19 +203,26 @@ class Field extends React.Component {
     });
   }
 
-  onBlockWillMount(){
-    this.setState({renderedBlocksCount: ++this.state.renderedBlocksCount})
-  }
-
   getConnectRenderObjects(block){
     return block.Connects.map((connect)=>{
       return <Connection
                 key={`${block.Id}_${connect}`}
                 StartPoint={this.getOutputConnectorCoords(block)} 
-                EndPoint={this.getInputConnectorCoords(model.blocks.find((block)=>
-                  {return block.Id == connect;}))}
+                EndPoint={this.getInputConnectorCoords(findBlockById(model.blocks, connect))}
               />
     });
+  }
+
+  getUncommittedConnection(){
+    if(!this.state.connectableParentBlockId || !this.state.connectionEndPosition){
+      return null;
+    }
+    return <Connection
+              key={`${this.state.connectableParentBlockId}_no`}
+              StartPoint={this.getOutputConnectorCoords(
+                findBlockById(model.blocks, this.state.connectableParentBlockId))}
+              EndPoint={this.state.connectionEndPosition}
+           />
   }
 
   render() {
@@ -136,6 +233,11 @@ class Field extends React.Component {
     var connects = allElements.filter(element => {
       return element.type.name == "Connection";
     })
+    
+    var uncommittedConnection = this.getUncommittedConnection();
+    if(uncommittedConnection){
+      connects.push(uncommittedConnection);
+    }
 
     if(elementsToRender.length == this.state.renderedBlocksCount){
       Array.prototype.push.apply(elementsToRender, connects)
@@ -175,11 +277,6 @@ class Field extends React.Component {
       x: block.Position.x + element.offsetWidth,
       y: block.Position.y + element.offsetHeight/2
     };
-  }
-
-  removeListeners(){
-    document.removeEventListener('mousemove', this.onMouseMove);
-    document.removeEventListener('mouseup', this.onMouseUp);
   }
 }
 
