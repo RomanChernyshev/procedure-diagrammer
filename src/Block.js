@@ -1,7 +1,8 @@
 import React from 'react';
+import '../node_modules/material-design-lite/material.min.css'
 import './Block.css';
 import Connector from './Connector'
-import '../node_modules/material-design-lite/material.min.css'
+import ConnectionTypesEnum from './ConnectionTypes'
 
 const connectorRadius = 4;
 class Block extends React.Component{
@@ -27,8 +28,17 @@ class Block extends React.Component{
     this.props.OnMouseLeave()
   }
 
-  onStartConnecting(){
-    this.props.OnStartConnecting(this.props.Block.Id)
+  onMouseDown(event){
+    event.stopPropagation();
+    event.preventDefault();
+    this.props.OnMouseDown(this.props.Block, getCorrection(this.props.Block.Position, {
+      x: event.clientX,
+      y: event.clientY
+    }))
+  }
+
+  onStartConnecting(connectionType){
+    this.props.OnStartConnecting(this.props.Block.Id, connectionType)
   }
 
   render() {
@@ -42,19 +52,14 @@ class Block extends React.Component{
         }}>
           <div id={this.props.Block.Id}
             className="block mdl-shadow--2dp"
-            onMouseDown={(event)=> {
-              this.props.OnMouseDown(this.props.Block, getCorrection(this.props.Block.Position, {
-                x: event.clientX,
-                y: event.clientY
-              }))
-            }}
+            onMouseDown={this.onMouseDown.bind(this)}
             onMouseEnter={this.onMouseEnter.bind(this)}
             onMouseLeave={this.onMouseLeave.bind(this)}
           >
             {(this.props.Input || this.state.hover) &&
               <Connector key={`input_${this.props.Id}`} 
                 Radius={connectorRadius} 
-                Side="left"
+                Type={ConnectionTypesEnum.input}
                 OnMouseDown={this.onStartConnecting.bind(this)}
               />
             }
@@ -64,7 +69,7 @@ class Block extends React.Component{
             {(this.props.Output || this.state.hover) &&
               <Connector key={`output_${this.props.Id}`}
                 Radius={connectorRadius}
-                Side="right"
+                Type={ConnectionTypesEnum.output}
                 OnMouseDown={this.onStartConnecting.bind(this)}
               />
             }

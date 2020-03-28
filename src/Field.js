@@ -2,6 +2,7 @@ import React from 'react';
 import './Field.css';
 import Block from './Block';
 import Connection from './Connection';
+import ConnectionTypesEnum from './ConnectionTypes'
 
 var model = {
   blocks:[
@@ -18,7 +19,7 @@ var model = {
       },
       {
           Id: 2,
-          Title: "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          Title: "Абырвалг",
           Position:{
               x: 700,
               y: 100
@@ -27,10 +28,28 @@ var model = {
       },
       {
         Id: 3,
-        Title: "abcd",
+        Title: "API",
         Position:{
             x: 670,
             y: 350
+        },
+        Connects:[]
+      },
+      {
+        Id: 4,
+        Title: "Функция",
+        Position:{
+            x: 480,
+            y: 820
+        },
+        Connects:[]
+      },
+      {
+        Id: 5,
+        Title: "Оповещение",
+        Position:{
+            x: 750,
+            y: 250
         },
         Connects:[]
       }
@@ -53,6 +72,72 @@ const hasConntection = (block, conntection) => {
   })
 }
 
+const getConnectionModel = (nominalStartId, nominalEndId, connectionType) => {
+  if(!nominalStartId || !nominalEndId){
+    return null;
+  }
+  var result = {}
+  if(connectionType == ConnectionTypesEnum.input){
+    result.source = nominalEndId;
+    result.destination = nominalStartId;
+  }
+  else if(connectionType == ConnectionTypesEnum.output){
+    result.source = nominalStartId;
+    result.destination = nominalEndId;
+  }
+  else{
+    return null;
+  }
+  return result;
+}
+
+const getPositionModel = (connectedBlock, mousePosition, connectionType) => {
+  if(!connectedBlock || !mousePosition){
+    return null;
+  }
+  var result = {};
+  if(connectionType == ConnectionTypesEnum.input){
+    result.StartPoint = mousePosition;
+    result.EndPoint = getInputConnectorCoords(connectedBlock);
+  }
+  else if(connectionType == ConnectionTypesEnum.output){
+    result.StartPoint = getOutputConnectorCoords(connectedBlock);
+    result.EndPoint = mousePosition;
+  }
+  else {
+    return null;
+  }
+  return result;
+}
+
+const getInputConnectorCoords = (block) => {
+  if(!block){
+    throw Error(emptyBlockErrorMessage);
+  }
+  var element = document.getElementById(block.Id);
+  if(!element){
+    return emptyCoordinates;
+  }
+  return {
+    x: block.Position.x,
+    y: block.Position.y + element.offsetHeight/2
+  };
+}
+
+const getOutputConnectorCoords = (block) => {
+  if(!block){
+    throw Error(emptyBlockErrorMessage);
+  }
+  var element = document.getElementById(block.Id);
+  if(!element){
+    return emptyCoordinates;
+  }
+  return {
+    x: block.Position.x + element.offsetWidth,
+    y: block.Position.y + element.offsetHeight/2
+  };
+}
+
 class Field extends React.Component {
   
   constructor(props) {
@@ -62,6 +147,10 @@ class Field extends React.Component {
       correction: null,
       renderedBlocksCount:0,
     };
+    this.onBlockDrag = this.onBlockDrag.bind(this);
+    this.onBlockDrop = this.onBlockDrop.bind(this);
+    this.onConnectionDrag = this.onConnectionDrag.bind(this);
+    this.onConnectionDrop = this.onConnectionDrop.bind(this);
   }
 
   componentWillUnmount(){
@@ -74,11 +163,13 @@ class Field extends React.Component {
       draggedObj: block,
       correction: correction
     });
-    document.addEventListener('mousemove', this.onBlockDrag.bind(this));
-    document.addEventListener('mouseup', this.onBlockDrop.bind(this));
+    document.addEventListener('mousemove', this.onBlockDrag);
+    document.addEventListener('mouseup', this.onBlockDrop);
   } 
 
-  onBlockDrop(){
+  onBlockDrop(event){
+    event.stopPropagation();
+    event.preventDefault();
     this.removeBlockDndListeners();
     this.setState({
       draggedObj: null
@@ -86,12 +177,12 @@ class Field extends React.Component {
   }
 
   onBlockDrag(event){
+    event.stopPropagation();
+    event.preventDefault();
     if(!this.state.draggedObj){
       return;
     }
     this.updateBlockPosition(event);
-    event.stopPropagation();
-    event.preventDefault();
     this.forceUpdate();
   }
 
@@ -128,27 +219,34 @@ class Field extends React.Component {
     this.setState({renderedBlocksCount: ++this.state.renderedBlocksCount})
   }
 
-  onStartConnectionDrag(blockId){
-    if(!blockId){
+  onStartConnectionDrag(blockId, connectionType){
+    if(!blockId || !connectionType){
       return;
     }
+
     this.setState({
-      connectableParentBlockId: blockId 
-    });
-    document.addEventListener('mouseup', this.onConnectionDrop.bind(this));
-    document.addEventListener('mousemove', this.onConnectionDrag.bind(this));
+      connectionType: connectionType,
+      connectableParentBlockId: blockId
+    })
+
+    document.addEventListener('mouseup', this.onConnectionDrop);
+    document.addEventListener('mousemove', this.onConnectionDrag);
   }
 
   onConnectionDrop(){
-    var startBlock = findBlockById(model.blocks, this.state.connectableParentBlockId);
-    
+    var connectionModel = getConnectionModel(
+      this.state.connectableParentBlockId,
+      this.state.targetConnectableBlockId,
+      this.state.connectionType);
+
+    var sourceBlock = findBlockById(model.blocks, connectionModel?.source)
     if (
-      startBlock 
-      && this.state.targetConnectableBlockId
-      && this.state.connectableParentBlockId != this.state.targetConnectableBlockId
-      && !hasConntection(startBlock, this.state.targetConnectableBlockId)
+      sourceBlock
+      && connectionModel.destination
+      && connectionModel.source != connectionModel.destination
+      && !hasConntection(sourceBlock, connectionModel.destination)
     ) {
-      startBlock.Connects.push(this.state.targetConnectableBlockId);
+      sourceBlock.Connects.push(connectionModel.destination);
     }
     this.setState({
       connectableParentBlockId: null,
@@ -207,21 +305,30 @@ class Field extends React.Component {
     return block.Connects.map((connect)=>{
       return <Connection
                 key={`${block.Id}_${connect}`}
-                StartPoint={this.getOutputConnectorCoords(block)} 
-                EndPoint={this.getInputConnectorCoords(findBlockById(model.blocks, connect))}
+                StartPoint={getOutputConnectorCoords(block)} 
+                EndPoint={getInputConnectorCoords(findBlockById(model.blocks, connect))}
               />
     });
   }
 
   getUncommittedConnection(){
-    if(!this.state.connectableParentBlockId || !this.state.connectionEndPosition){
+    var connectedBlock = findBlockById(model.blocks, this.state.connectableParentBlockId);
+    if(!connectedBlock){
       return null;
     }
+
+    var positionModel = getPositionModel(connectedBlock,
+      this.state.connectionEndPosition,
+      this.state.connectionType);
+    
+    if(!positionModel){
+      return null;
+    }
+
     return <Connection
               key={`${this.state.connectableParentBlockId}_no`}
-              StartPoint={this.getOutputConnectorCoords(
-                findBlockById(model.blocks, this.state.connectableParentBlockId))}
-              EndPoint={this.state.connectionEndPosition}
+              StartPoint={positionModel.StartPoint}
+              EndPoint={positionModel.EndPoint}
            />
   }
 
@@ -248,35 +355,6 @@ class Field extends React.Component {
         {elementsToRender}
       </div>
     );
-  }
-  
-  // вот это куда-то бы перенести
-  getInputConnectorCoords = (block) => {
-    if(!block){
-      throw Error(emptyBlockErrorMessage);
-    }
-    var element = document.getElementById(block.Id);
-    if(!element){
-      return emptyCoordinates;
-    }
-    return {
-      x: block.Position.x,
-      y: block.Position.y + element.offsetHeight/2
-    };
-  }
-
-  getOutputConnectorCoords = (block) => {
-    if(!block){
-      throw Error(emptyBlockErrorMessage);
-    }
-    var element = document.getElementById(block.Id);
-    if(!element){
-      return emptyCoordinates;
-    }
-    return {
-      x: block.Position.x + element.offsetWidth,
-      y: block.Position.y + element.offsetHeight/2
-    };
   }
 }
 

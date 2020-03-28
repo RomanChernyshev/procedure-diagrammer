@@ -1,5 +1,6 @@
 import React from 'react';
 import "./Connector.css"
+import ConnectionTypesEnum from './ConnectionTypes'
 
 class Connector extends React.Component{
   constructor(props) {
@@ -20,7 +21,7 @@ class Connector extends React.Component{
   onMouseDown(event){
     event.stopPropagation();
     event.preventDefault();
-    this.props.OnMouseDown();
+    this.props.OnMouseDown(this.props.Type);
   }
 
   getRadius(){
@@ -33,7 +34,7 @@ class Connector extends React.Component{
           width: `${this.getRadius()*2}px`,
           height: `${this.getRadius()*2}px`,
           top: `calc(50% - ${this.getRadius()}px)`,
-          left: getHorisontalPosition(this.props.Side, this.getRadius())
+          left: getHorisontalPosition(this.props.Type, this.getRadius())
         }}
         onMouseEnter={this.onMouseEnter.bind(this)}
         onMouseLeave={this.onMouseLeave.bind(this)}
@@ -47,12 +48,9 @@ class Connector extends React.Component{
   }
 }
 
-function getHorisontalPosition(side, radius){
-  if(!side){
-    return 0;
-  }
-  return side == "left" 
+function getHorisontalPosition(type, radius){
+  return type == ConnectionTypesEnum.input
     ? 0
-    : side == "right" ? `calc(100% - ${radius*2}px)` : 0;
+    : type == ConnectionTypesEnum.output ? `calc(100% - ${radius*2}px)` : 0;
 }
 export default Connector;
